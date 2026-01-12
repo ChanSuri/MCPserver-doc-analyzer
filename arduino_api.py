@@ -9,7 +9,7 @@ from googleapiclient.discovery import build
 mcp = FastMCP("Arduino_Analytics_Expert")
 
 # ========== Google Docs ==========
-DOCUMENT_ID = "1R5sSk3xK7iIc3jyguciO-6WVoYyal5L3XamyD5vqeEE"
+DOCUMENT_ID = "xxx-your-google-doc-id-xxx"  # Google doc ID
 SCOPES = ['https://www.googleapis.com/auth/documents.readonly']
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
