@@ -93,6 +93,11 @@ def build_knowledge_index():
             table = [t for t in doc.tables if t._element == child][0]
             current_content.append(parse_table_to_markdown(table))
 
+        # graph
+        elif child.findall('.//w:drawing', namespaces=doc.element.nsmap):
+            img_context = current_sub_topic or "Unlabeled Section"
+            current_content.append(f"\n> Graph in this section: {img_context}] (Please search in original document)\n")
+
     save_current_section()
     _knowledge_index = index
     return _knowledge_index
@@ -234,9 +239,64 @@ async def compare_platform_strategy(feature_or_tool: str) -> dict:
         "evidence_level": "expert_manual"
     }
 
+@mcp.tool()
+async def get_metric_definition(term: str) -> dict:
+    """
+    Look up the precise definition of a specific metric or term (e.g., 'Session', 'Attribution Window').
+    Best for answering 'What does X mean?'.
+    """
+    # Search in "Dimensions and Metrics" section first
+    results = smart_search(term, main_filter="Dimensions and Metrics")
+
+    # 2. If not found, try searching the full document for "Definition"
+    if not results:
+        results = smart_search(term + " definition")
+
+    if not results:
+        return {
+            "term": term, 
+            "definition": None, 
+            "message": "Definition not found in the glossary."
+        }
+
+    return {
+        "term": term,
+        "use_case": "glossary_lookup",
+        "sections": [
+            {
+                "context": r["sub_topic"], 
+                "text": r["content"]
+            } for r in results[:1] # only return the most relevant definition
+        ],
+        "evidence_level": "expert_manual"
+    }
+
+@mcp.tool()
+async def report_documentation_issue(section_topic: str, issue_description: str) -> str:
+    """
+    Allow employees to report errors or outdated information in the playbook.
+    Example: "The GA4 limit in section 'Limits' is outdated."
+    """
+    # In production, this should call the Jira API or send a Slack message
+    # Here we simulate writing to a local log file
+    log_entry = f"[REPORT] Topic: {section_topic} | Issue: {issue_description}"
+    logger.warning(log_entry)
+    
+    with open("playbook_feedback.log", "a") as f:
+        f.write(log_entry + "\n")
+        
+    return "Thank you. Your feedback has been logged and sent to the Data Governance team."
+
+
 # --- start ---
 
 def main():
+    logger.info("Arduino Analytics MCP Server is initializing...")
+    try:
+        kb = build_knowledge_index()
+        logger.info(f"Successfully indexed {len(kb)} sections from Playbook.")
+    except Exception as e:
+        logger.error(f"Failed to load Playbook: {e}")
     mcp.run(transport="stdio")
 
 if __name__ == "__main__":
