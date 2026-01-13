@@ -7,15 +7,16 @@ This project transforms the **Arduino Analytics Ecosystem Playbook** into a cont
 
 ## 🌟 Core Capabilities
 
-This server is specifically engineered for data engineering and analytics teams, featuring four specialized tools:
+Designed specifically for Data Teams, this MCP server organizes documentation into six specialized intent-based tools, transforming the playbook from a static document into an interactive knowledge base:
 
-| Tool Name | Business Use Case | Playbook Mapping |
+| Tool Name | Business Use Case | Playbook Mapping & Function |
 | :--- | :--- | :--- |
-| `get_comprehensive_overview` | **Navigation** | Automatically extracts the knowledge map and hierarchical table of contents. |
-| `solve_analytics_issue` | **Troubleshooting** | Targeted retrieval for errors, configuration issues, and technical SOPs. |
-| `check_limits_and_compliance` | **Compliance Guardrails** | Enforces checks on Cookie Consent, Age Restrictions, and Platform Limits (GA4/Segment). |
-| `compare_platform_strategy` | **Decision Support** | Strategic guidance on tool selection (e.g., GA4 vs. Segment vs. Shopify). |
-
+| `get_comprehensive_overview` | **Navigation** | Extracts the full hierarchical map of the ecosystem for quick orientation. |
+| `get_metric_definition` | **Standardization** | Precision lookup for specific metrics (e.g., "Session", "LTV") in the "Dimensions and Metrics" chapter to ensure team alignment. |
+| `solve_analytics_issue` | **Troubleshooting** | Targets implementation errors, GTM issues, and data discrepancies with step-by-step SOPs. |
+| `check_limits_and_compliance` | **Risk Guardrails** | Enforces Cookie consent, Age restrictions, and GA4 technical limits to prevent policy violations. |
+| `compare_platform_strategy` | **Decision Support** | Provides strategic "When to use" guidance (e.g., GA4 vs. Segment) based on official decision matrices. |
+| `report_documentation_issue` | **Feedback Loop** | **[Future]** Allows employees to flag outdated content or errors directly, creating a continuous improvement cycle for the documentation. |
 ---
 
 ## 🚀 Quick Start
