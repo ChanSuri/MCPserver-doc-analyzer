@@ -297,6 +297,8 @@ def main():
         logger.info(f"Successfully indexed {len(kb)} sections from Playbook.")
     except Exception as e:
         logger.error(f"Failed to load Playbook: {e}")
+        sys.exit(1)
+
     mcp.run(transport="stdio")
 
 if __name__ == "__main__":
