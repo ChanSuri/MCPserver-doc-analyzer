@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("Arduino_Analytics_Expert")
 DOC_PATH = os.path.join(os.path.dirname(__file__), "Arduino - The Analytics Ecosytem playbook.docx")
 
+# _knowledge_index: List[Dict[str, Any]] = []
+
 _knowledge_index = None
 _last_mtime = None
 
@@ -61,6 +63,7 @@ def build_knowledge_index():
                     "sub_topic": current_sub_topic or current_main_topic,
                     "content": text,
                     "search_key": f"{current_main_topic} {current_sub_topic}".lower(),
+                    # "last_updated": mtime
                 })
 
     for child in doc.element.body.iterchildren():
@@ -93,18 +96,14 @@ def build_knowledge_index():
         # graph
         elif child.findall('.//w:drawing', namespaces=doc.element.nsmap):
             img_context = current_sub_topic or "Unlabeled Section"
-            current_content.append(f"\n> [Graph in this section: {img_context}] (Please search in original document)\n")
+            current_content.append(f"\n> Graph in this section: {img_context}] (Please search in original document)\n")
 
     save_current_section()
     _knowledge_index = index
     return _knowledge_index
 
 
-def smart_search(query: str, main_filter: Optional[str] = None, top_k: int = 3) -> List[Dict]:
-    """
-    Search logic returning internal Dictionary structure.
-    Increased top_k slightly to ensure context isn't missed.
-    """
+def smart_search(query: str, main_filter: Optional[str] = None, top_k: int = 2) -> List[Dict]:
     kb = build_knowledge_index()
     results = []
     
@@ -120,130 +119,173 @@ def smart_search(query: str, main_filter: Optional[str] = None, top_k: int = 3) 
         if final_score > 40:
             results.append({**item, "score": final_score})
             
-    return sorted(results, key=lambda x: x['score'], reverse=True)[:top_k] 
+    return sorted(results, key=lambda x: x['score'], reverse=True)[:top_k] # top_k results: 2
 
-
-# --- Helper: Format Output as Markdown ---
-def format_results_as_markdown(title: str, results: List[Dict], error_msg: str = "No info found.") -> str:
-    """
-    Converts search results into a clean Markdown string.
-    This reduces token usage and processing time for the LLM compared to JSON.
-    """
-    if not results:
-        return f"**Status**: {error_msg}\nQuery: {title}"
-
-    md_lines = [f"# Search Results for: '{title}'\n"]
-    for i, r in enumerate(results, 1):
-        md_lines.append(f"## {i}. {r['main_topic']} > {r['sub_topic']}")
-        
-        # Truncate very long content if necessary to prevent timeouts
-        # 2000 chars is roughly 500-800 tokens, which is a safe chunk size per section
-        content = r['content']
-        if len(content) > 2000: 
-            content = content[:2000] + "\n...(content truncated due to length)..."
-        
-        md_lines.append(f"{content}\n")
-        md_lines.append("---")
-    
-    return "\n".join(md_lines)
-
-
-# --- MCP Tools (Updated to return Markdown Strings) ---
-
+# --- MCP Tools ---
 @mcp.tool()
-async def get_comprehensive_overview() -> str:
+async def get_comprehensive_overview() -> dict:
     """
     Provides a structural overview of the entire Analytics Ecosystem.
-    Returns a Markdown formatted list.
+    Returns structured sections for Agent to build navigation or summary.
     """
     kb = build_knowledge_index()
     structure = {}
     for item in kb:
         structure.setdefault(item['main_topic'], []).append(item['sub_topic'])
     
-    md_lines = ["# Analytics Ecosystem Overview\n"]
-    
-    for main, subs in structure.items():
-        unique_subs = sorted(list(set(subs)))
-        md_lines.append(f"### {main}")
-        for sub in unique_subs:
-            # Avoid repeating if subtopic is same as main topic
-            if sub and sub != main:
-                md_lines.append(f"- {sub}")
-        md_lines.append("") # Empty line for spacing
-        
-    return "\n".join(md_lines)
+    sections = [
+        {
+            "main_topic": main,
+            "sub_topics": list(set(subs))
+        }
+        for main, subs in structure.items()
+    ]
+
+    return {
+        "use_case": "ecosystem_overview",
+        "sections": sections,
+        "evidence_level": "manual_index"
+    }
 
 
 @mcp.tool()
-async def solve_analytics_issue(query: str) -> str:
+async def solve_analytics_issue(query: str) -> dict:
     """
     Search for solutions to specific problems, including discrepancies or implementation errors.
+    Returns structured evidence for Agent to summarize or generate SOPs.
     """
     results = smart_search(query)
-    return format_results_as_markdown(query, results, "No matching solution found in playbook.")
+    if not results:
+        return {
+            "query": query,
+            "sections": [],
+            "message": "No matching solution found."
+        }
 
+    sections = [
+        {
+            "main_topic": r["main_topic"],
+            "sub_topic": r["sub_topic"],
+            "content": r["content"]
+        }
+        for r in results[:5]  # avoid excessive length of text
+    ]
+
+    return {
+        "query": query,
+        "use_case": "troubleshooting",
+        "sections": sections,
+        "evidence_level": "expert_manual"
+    }
 
 @mcp.tool()
-async def check_limits_and_compliance(topic: str) -> str:
+async def check_limits_and_compliance(topic: str) -> dict:
     """
     Query GA4 limits, data retention, cookie consent, or age restrictions.
+    Returns structured evidence for Agent to summarize or generate instructions.
     """
     results = smart_search(topic, main_filter="restrictions")
     results += smart_search(topic, main_filter="limits")
-    
-    # Remove duplicates based on content
-    unique_results = {r['content']: r for r in results}.values()
-    
-    return format_results_as_markdown(topic, list(unique_results), "No compliance or limit information found.")
+
+    if not results:
+        return {"topic": topic, "sections": [], "message": "No compliance or limit information found."}
+
+    sections = [
+        {
+            "main_topic": r["main_topic"],
+            "sub_topic": r["sub_topic"],
+            "content": r["content"]
+        }
+        for r in results[:5]
+    ]
+
+    return {
+        "topic": topic,
+        "use_case": "compliance_check",
+        "sections": sections,
+        "evidence_level": "expert_manual"
+    }
 
 
 @mcp.tool()
-async def compare_platform_strategy(feature_or_tool: str) -> str:
+async def compare_platform_strategy(feature_or_tool: str) -> dict:
     """
     Technical comparison between platforms (GA4, Segment, Shopify) and platform choice strategy.
+    Returns structured evidence.
     """
     results = smart_search(feature_or_tool, main_filter="choose")
     results += smart_search(feature_or_tool, main_filter="discrepancies")
-    
-    # Remove duplicates
-    unique_results = {r['content']: r for r in results}.values()
 
-    return format_results_as_markdown(feature_or_tool, list(unique_results), "No strategic comparison found.")
+    if not results:
+        return {
+            "feature_or_tool": feature_or_tool,
+            "sections": [],
+            "message": "No strategic comparison found."
+        }
 
+    sections = [
+        {
+            "main_topic": r["main_topic"],
+            "sub_topic": r["sub_topic"],
+            "content": r["content"]
+        }
+        for r in results[:5]
+    ]
+
+    return {
+        "feature_or_tool": feature_or_tool,
+        "use_case": "platform_comparison",
+        "sections": sections,
+        "evidence_level": "expert_manual"
+    }
 
 @mcp.tool()
-async def get_metric_definition(term: str) -> str:
+async def get_metric_definition(term: str) -> dict:
     """
     Look up the precise definition of a specific metric or term (e.g., 'Session', 'Attribution Window').
+    Best for answering 'What does X mean?'.
     """
-    # 1. Search in "Dimensions and Metrics" section first
+    # Search in "Dimensions and Metrics" section first
     results = smart_search(term, main_filter="Dimensions and Metrics")
 
     # 2. If not found, try searching the full document for "Definition"
     if not results:
         results = smart_search(term + " definition")
 
-    # Only return the top 1 result for definitions to keep it concise
-    return format_results_as_markdown(term, results[:1], "Definition not found in the glossary.")
+    if not results:
+        return {
+            "term": term, 
+            "definition": None, 
+            "message": "Definition not found in the glossary."
+        }
 
+    return {
+        "term": term,
+        "use_case": "glossary_lookup",
+        "sections": [
+            {
+                "context": r["sub_topic"], 
+                "text": r["content"]
+            } for r in results[:1] # only return the most relevant definition
+        ],
+        "evidence_level": "expert_manual"
+    }
 
 @mcp.tool()
 async def report_documentation_issue(section_topic: str, issue_description: str) -> str:
     """
     Allow employees to report errors or outdated information in the playbook.
+    Example: "The GA4 limit in section 'Limits' is outdated."
     """
+    # In production, this should call the Jira API or send a Slack message
+    # Here we simulate writing to a local log file
     log_entry = f"[REPORT] Topic: {section_topic} | Issue: {issue_description}"
     logger.warning(log_entry)
     
-    # Using utf-8 encoding to prevent errors on Windows
-    try:
-        with open("playbook_feedback.log", "a", encoding="utf-8") as f:
-            f.write(log_entry + "\n")
-    except Exception as e:
-        logger.error(f"Could not write to log file: {e}")
+    with open("playbook_feedback.log", "a") as f:
+        f.write(log_entry + "\n")
         
-    return f"Feedback logged successfully for topic: '{section_topic}'. Data Governance team has been notified."
+    return "Thank you. Your feedback has been logged and sent to the Data Governance team."
 
 
 # --- start ---

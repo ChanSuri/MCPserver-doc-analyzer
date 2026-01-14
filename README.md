@@ -55,3 +55,9 @@ Add the following to the mcpServers section:
   }
 }
 ```
+
+### 4. Logging tracking
+In terminal:
+```bash
+tail -f ~/Library/Logs/Claude/mcp.log
+```
