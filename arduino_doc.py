@@ -18,17 +18,6 @@ _last_mtime = None
 
 
 # --- Analysis functions ---
-
-def parse_table_to_markdown(table) -> str:
-    """change Word table to Markdown format for LLM"""
-    rows = []
-    for i, row in enumerate(table.rows):
-        cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
-        rows.append("| " + " | ".join(cells) + " |")
-        if i == 0: # header separator
-            rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
-    return "\n" + "\n".join(rows) + "\n"
-
 def build_knowledge_index():
     """Make index with Heading"""
     global _knowledge_index, _last_mtime
@@ -147,8 +136,18 @@ def format_results_as_markdown(title: str, results: List[Dict], error_msg: str =
     
     return "\n".join(md_lines)
 
+def parse_table_to_markdown(table) -> str:
+    """change Word table to Markdown format for LLM"""
+    rows = []
+    for i, row in enumerate(table.rows):
+        cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
+        rows.append("| " + " | ".join(cells) + " |")
+        if i == 0: # header separator
+            rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
+    return "\n" + "\n".join(rows) + "\n"
 
-# --- MCP Tools (Updated to return Markdown Strings) ---
+
+# --- MCP Tools ---
 
 @mcp.tool()
 async def get_comprehensive_overview() -> str:
@@ -217,10 +216,10 @@ async def get_metric_definition(term: str) -> str:
     """
     Look up the precise definition of a specific metric or term (e.g., 'Session', 'Attribution Window').
     """
-    # 1. Search in "Dimensions and Metrics" section first
+    # Search in "Dimensions and Metrics" section first
     results = smart_search(term, main_filter="Dimensions and Metrics")
 
-    # 2. If not found, try searching the full document for "Definition"
+    # If not found, try searching the full document for "Definition"
     if not results:
         results = smart_search(term + " definition")
 
@@ -236,14 +235,14 @@ async def report_documentation_issue(section_topic: str, issue_description: str)
     log_entry = f"[REPORT] Topic: {section_topic} | Issue: {issue_description}"
     logger.warning(log_entry)
     
-    # Using utf-8 encoding to prevent errors on Windows
+    # Append to a local log file for review by Data Governance team
     try:
         with open("playbook_feedback.log", "a", encoding="utf-8") as f:
             f.write(log_entry + "\n")
     except Exception as e:
         logger.error(f"Could not write to log file: {e}")
         
-    return f"Feedback logged successfully for topic: '{section_topic}'. Data Governance team has been notified."
+    return f"Feedback logged successfully for topic: '{section_topic}'."
 
 
 # --- start ---
